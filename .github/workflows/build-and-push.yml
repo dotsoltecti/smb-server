@@ -1,0 +1,49 @@
+name: Build and Push SMB Container
+
+on:
+  workflow_call:
+    inputs:
+      smb_version:
+        required: true
+        type: string
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build Docker image
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/smb-server
+          docker build -t $IMAGE_NAME:${{ inputs.smb_version }} .
+          docker tag $IMAGE_NAME:${{ inputs.smb_version }} $IMAGE_NAME:latest
+
+      - name: Push Docker image to GHCR
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/smb-server:${{ inputs.smb_version }}
+          docker push ghcr.io/${{ github.repository_owner }}/smb-server:latest
+
+      - name: Update Git tags
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+
+          git tag -f "smb-${{ inputs.smb_version }}"
+          git push origin "smb-${{ inputs.smb_version }}"
+
+          git tag -f latest
+          git push origin latest --force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: smb-${{ inputs.smb_version }}
+          name: "SMB Server ${{ inputs.smb_version }}"
+          body: "A new version of the SMB server container has been built: **${{ inputs.smb_version }}**"
+          draft: false
+          prerelease: false
