@@ -1,0 +1,82 @@
+name: Build and Push SMB Container
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Runs daily at 2 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  check-updates:
+    runs-on: ubuntu-latest
+    outputs:
+      smb_version: ${{ steps.check.outputs.version }}
+      needs_update: ${{ steps.compare.outputs.needs_update }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all tags
+
+      - name: Check latest Alpine SMB version
+        id: check
+        run: |
+          LATEST_VERSION=$(curl -s https://pkgs.alpinelinux.org/package/edge/main/x86_64/samba | grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+          echo "Latest SMB version: $LATEST_VERSION"
+          echo "::set-output name=version::$LATEST_VERSION"
+
+      - name: Get last built version from Git tags
+        id: compare
+        run: |
+          LAST_BUILT_VERSION=$(git tag --list 'smb-*' | sort -V | tail -n 1 | sed 's/smb-//')
+          echo "Last built version: $LAST_BUILT_VERSION"
+
+          if [ "$LAST_BUILT_VERSION" = "$LATEST_VERSION" ]; then
+            echo "SMB is already up-to-date."
+            echo "::set-output name=needs_update::false"
+          else
+            echo "New SMB version available!"
+            echo "::set-output name=needs_update::true"
+          fi
+
+  build-and-push:
+    needs: check-updates
+    if: needs.check-updates.outputs.needs_update == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and push Docker image to GHCR
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/smb-server
+          
+          docker build -t $IMAGE_NAME:${{ needs.check-updates.outputs.smb_version }} .
+          docker tag $IMAGE_NAME:${{ needs.check-updates.outputs.smb_version }} $IMAGE_NAME:latest
+
+          docker push $IMAGE_NAME:${{ needs.check-updates.outputs.smb_version }}
+          docker push $IMAGE_NAME:latest
+
+      - name: Update Git tags
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          
+          # Create versioned tag
+          git tag -f "smb-${{ needs.check-updates.outputs.smb_version }}"
+          git push origin "smb-${{ needs.check-updates.outputs.smb_version }}"
+
+          # Update 'latest' tag
+          git tag -f latest
+          git push origin latest --force
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: smb-${{ needs.check-updates.outputs.smb_version }}
+          name: "SMB Server ${{ needs.check-updates.outputs.smb_version }}"
+          body: "A new version of the SMB server container has been built: **${{ needs.check-updates.outputs.smb_version }}**"
+          draft: false
+          prerelease: false
