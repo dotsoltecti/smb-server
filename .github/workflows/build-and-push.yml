@@ -27,7 +27,7 @@ jobs:
         run: |
           docker push ghcr.io/${{ github.repository_owner }}/smb-server:${{ inputs.smb_version }}
           docker push ghcr.io/${{ github.repository_owner }}/smb-server:latest
-
+      
       - name: Update Git tags
         run: |
           git config --global user.name "github-actions"
@@ -42,6 +42,7 @@ jobs:
           if git ls-remote --tags origin | grep -q "refs/tags/$SMB_TAG"; then
             echo "Tag $SMB_TAG already exists. Deleting..."
             git push origin --delete "$SMB_TAG"
+            git tag -d "$SMB_TAG" || true  # Ensure local deletion
           fi
       
           # Create and push the new tag
