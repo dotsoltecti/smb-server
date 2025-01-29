@@ -42,6 +42,9 @@ jobs:
             echo "needs_update=false" >> $GITHUB_ENV
           fi
 
+      - name: Debugging output
+        run: echo "needs_update=${{ steps.compare.outputs.needs_update }}"
+
   build-and-push:
     needs: check-updates
     if: needs.check-updates.outputs.needs_update == 'true'
