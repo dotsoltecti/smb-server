@@ -5,6 +5,10 @@ on:
     - cron: '0 2 * * *'  # Runs daily at 2 AM UTC
   workflow_dispatch:  # Allow manual trigger
 
+permissions:
+  packages: write  # Allow write access to GHCR
+  contents: read   # Allow read access to repo contents (for checkout)
+
 jobs:
   check-updates:
     runs-on: ubuntu-latest
