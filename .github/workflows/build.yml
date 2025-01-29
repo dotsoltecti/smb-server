@@ -26,24 +26,26 @@ jobs:
         run: |
           LATEST_VERSION=$(curl -s https://pkgs.alpinelinux.org/package/edge/main/x86_64/samba | grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
           echo "Latest SMB version: $LATEST_VERSION"
-          echo "smb_version=$LATEST_VERSION" >> $GITHUB_ENV
+          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
 
       - name: Compare with last built version
         id: compare
         run: |
+          LATEST_VERSION="${{ steps.check.outputs.version }}"
           LAST_BUILT_VERSION=$(git tag --list 'smb-*' | sort -V | tail -n 1 | sed 's/smb-//')
 
-          # If no version is found, proceed with build
           if [ -z "$LAST_BUILT_VERSION" ] || [ "$LAST_BUILT_VERSION" != "$LATEST_VERSION" ]; then
             echo "The image needs an update. Proceeding to build the image."
-            echo "needs_update=true" >> $GITHUB_ENV
+            echo "needs_update=true" >> $GITHUB_OUTPUT
           else
             echo "The image is up to date. Skipping build."
-            echo "needs_update=false" >> $GITHUB_ENV
+            echo "needs_update=false" >> $GITHUB_OUTPUT
           fi
 
       - name: Debugging output
-        run: echo "needs_update=${{ steps.compare.outputs.needs_update }}"
+        run: |
+          echo "SMB Version: ${{ steps.check.outputs.version }}"
+          echo "Needs Update: ${{ steps.compare.outputs.needs_update }}"
 
   build-and-push:
     needs: check-updates
@@ -59,12 +61,12 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/smb-server
-          docker build -t $IMAGE_NAME:${{ env.smb_version }} .
-          docker tag $IMAGE_NAME:${{ env.smb_version }} $IMAGE_NAME:latest
+          docker build -t $IMAGE_NAME:${{ needs.check-updates.outputs.smb_version }} .
+          docker tag $IMAGE_NAME:${{ needs.check-updates.outputs.smb_version }} $IMAGE_NAME:latest
 
       - name: Push Docker image to GHCR
         run: |
-          docker push ghcr.io/${{ github.repository_owner }}/smb-server:${{ env.smb_version }}
+          docker push ghcr.io/${{ github.repository_owner }}/smb-server:${{ needs.check-updates.outputs.smb_version }}
           docker push ghcr.io/${{ github.repository_owner }}/smb-server:latest
 
       - name: Update Git tags
@@ -73,8 +75,8 @@ jobs:
           git config --global user.email "github-actions@github.com"
           
           # Create versioned tag
-          git tag -f "smb-${{ env.smb_version }}"
-          git push origin "smb-${{ env.smb_version }}"
+          git tag -f "smb-${{ needs.check-updates.outputs.smb_version }}"
+          git push origin "smb-${{ needs.check-updates.outputs.smb_version }}"
 
           # Update 'latest' tag
           git tag -f latest
@@ -83,8 +85,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: smb-${{ env.smb_version }}
-          name: "SMB Server ${{ env.smb_version }}"
-          body: "A new version of the SMB server container has been built: **${{ env.smb_version }}**"
+          tag_name: smb-${{ needs.check-updates.outputs.smb_version }}
+          name: "SMB Server ${{ needs.check-updates.outputs.smb_version }}"
+          body: "A new version of the SMB server container has been built: **${{ needs.check-updates.outputs.smb_version }}**"
           draft: false
           prerelease: false
