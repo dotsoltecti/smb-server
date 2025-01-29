@@ -11,6 +11,7 @@ permissions:
   contents: write
   packages: write
   actions: write  # Grant permission to update workflows
+  workflows: write
 
 jobs:
   build-and-push:
