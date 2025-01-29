@@ -7,6 +7,11 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+  packages: write
+  actions: write  # Grant permission to update workflows
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
