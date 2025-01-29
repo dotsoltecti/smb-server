@@ -1,13 +1,13 @@
 name: Build and Push SMB Container
 
+permissions:
+  contents: write
+  packages: write
+
 on:
   schedule:
     - cron: '0 2 * * *'  # Runs daily at 2 AM UTC
   workflow_dispatch:  # Allow manual trigger
-
-permissions:
-  packages: write  # Allow write access to GHCR
-  contents: write   # Allow read access to repo contents (for checkout)
 
 jobs:
   check-updates:
@@ -26,23 +26,20 @@ jobs:
         run: |
           LATEST_VERSION=$(curl -s https://pkgs.alpinelinux.org/package/edge/main/x86_64/samba | grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
           echo "Latest SMB version: $LATEST_VERSION"
-          echo "::set-output name=version::$LATEST_VERSION"
+          echo "smb_version=$LATEST_VERSION" >> $GITHUB_ENV
 
-      - name: Get last built version from Git tags
+      - name: Compare with last built version
         id: compare
         run: |
           LAST_BUILT_VERSION=$(git tag --list 'smb-*' | sort -V | tail -n 1 | sed 's/smb-//')
-          
-          # Check if no tags are found (first run or missing tags)
-          if [ -z "$LAST_BUILT_VERSION" ]; then
-            echo "No previous build found, will create a new one."
-            echo "::set-output name=needs_update::true"
-          elif [ "$LAST_BUILT_VERSION" = "$LATEST_VERSION" ]; then
-            echo "SMB is already up-to-date."
-            echo "::set-output name=needs_update::false"
+
+          # If no version is found, proceed with build
+          if [ -z "$LAST_BUILT_VERSION" ] || [ "$LAST_BUILT_VERSION" != "$LATEST_VERSION" ]; then
+            echo "The image needs an update. Proceeding to build the image."
+            echo "needs_update=true" >> $GITHUB_ENV
           else
-            echo "New SMB version available!"
-            echo "::set-output name=needs_update::true"
+            echo "The image is up to date. Skipping build."
+            echo "needs_update=false" >> $GITHUB_ENV
           fi
 
   build-and-push:
@@ -53,43 +50,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # Log in to GitHub Container Registry
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      # Build the Docker image
       - name: Build Docker image
         run: |
           IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/smb-server
-          docker build -t $IMAGE_NAME:${{ needs.check-updates.outputs.smb_version }} .
-          docker tag $IMAGE_NAME:${{ needs.check-updates.outputs.smb_version }} $IMAGE_NAME:latest
+          docker build -t $IMAGE_NAME:${{ env.smb_version }} .
+          docker tag $IMAGE_NAME:${{ env.smb_version }} $IMAGE_NAME:latest
 
-      # Push the Docker image to GHCR
       - name: Push Docker image to GHCR
         run: |
-          docker push ghcr.io/${{ github.repository_owner }}/smb-server:${{ needs.check-updates.outputs.smb_version }}
+          docker push ghcr.io/${{ github.repository_owner }}/smb-server:${{ env.smb_version }}
           docker push ghcr.io/${{ github.repository_owner }}/smb-server:latest
 
-      # Update Git tags
       - name: Update Git tags
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           
           # Create versioned tag
-          git tag -f "smb-${{ needs.check-updates.outputs.smb_version }}"
-          git push origin "smb-${{ needs.check-updates.outputs.smb_version }}"
+          git tag -f "smb-${{ env.smb_version }}"
+          git push origin "smb-${{ env.smb_version }}"
 
           # Update 'latest' tag
           git tag -f latest
           git push origin latest --force
 
-      # Create GitHub Release
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: smb-${{ needs.check-updates.outputs.smb_version }}
-          name: "SMB Server ${{ needs.check-updates.outputs.smb_version }}"
-          body: "A new version of the SMB server container has been built: **${{ needs.check-updates.outputs.smb_version }}**"
+          tag_name: smb-${{ env.smb_version }}
+          name: "SMB Server ${{ env.smb_version }}"
+          body: "A new version of the SMB server container has been built: **${{ env.smb_version }}**"
           draft: false
           prerelease: false
