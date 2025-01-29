@@ -1,0 +1,48 @@
+name: SMB Version Update
+
+permissions:
+  contents: write
+  packages: write
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Runs daily at 2 AM UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  check-smb-version:
+    runs-on: ubuntu-latest
+    outputs:
+      smb_version: ${{ steps.check.outputs.version }}
+      needs_update: ${{ steps.compare.outputs.needs_update }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all tags
+
+      - name: Check latest Alpine SMB version
+        id: check
+        run: |
+          LATEST_VERSION=$(curl -s https://pkgs.alpinelinux.org/package/edge/main/x86_64/samba | grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+          echo "Latest SMB version: $LATEST_VERSION"
+          echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Compare with last built version
+        id: compare
+        run: |
+          LAST_BUILT_VERSION=$(git tag --list 'smb-*' | sort -V | tail -n 1 | sed 's/smb-//')
+
+          if [ -z "$LAST_BUILT_VERSION" ] || [ "$LAST_BUILT_VERSION" != "${{ steps.check.outputs.version }}" ]; then
+            echo "New SMB version detected. Proceeding to build."
+            echo "needs_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "No new SMB version."
+            echo "needs_update=false" >> $GITHUB_OUTPUT
+
+  build-and-push:
+    needs: check-smb-version
+    if: needs.check-smb-version.outputs.needs_update == 'true'
+    uses: ./.github/workflows/build-and-push.yml  # Reuse common build logic
+    with:
+      smb_version: ${{ needs.check-smb-version.outputs.smb_version }}
