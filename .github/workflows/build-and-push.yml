@@ -32,10 +32,18 @@ jobs:
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-
-          git tag -f "smb-${{ inputs.smb_version }}"
+      
+          # Delete the existing tag if it exists
+          if git rev-parse "smb-${{ inputs.smb_version }}" >/dev/null 2>&1; then
+            git tag -d "smb-${{ inputs.smb_version }}"
+            git push origin --delete "smb-${{ inputs.smb_version }}"
+          fi
+      
+          # Create and push the new tag
+          git tag "smb-${{ inputs.smb_version }}"
           git push origin "smb-${{ inputs.smb_version }}"
-
+      
+          # Update the 'latest' tag
           git tag -f latest
           git push origin latest --force
 
