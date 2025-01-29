@@ -7,7 +7,7 @@ on:
 
 permissions:
   packages: write  # Allow write access to GHCR
-  contents: read   # Allow read access to repo contents (for checkout)
+  contents: write   # Allow read access to repo contents (for checkout)
 
 jobs:
   check-updates:
