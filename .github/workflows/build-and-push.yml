@@ -10,7 +10,7 @@ on:
 permissions:
   contents: write
   packages: write
-  actions: write  # Grant permission to update workflows
+  #actions: write  # Grant permission to update workflows
   
 jobs:
   build-and-push:
