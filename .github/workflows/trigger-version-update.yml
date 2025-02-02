@@ -39,6 +39,7 @@ jobs:
           else
             echo "No new SMB version."
             echo "needs_update=false" >> $GITHUB_OUTPUT
+          fi  
 
   build-and-push:
     needs: check-smb-version
