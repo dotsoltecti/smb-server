@@ -24,7 +24,8 @@ jobs:
       - name: Check latest Alpine SMB version
         id: check
         run: |
-          LATEST_VERSION=$(curl -s https://pkgs.alpinelinux.org/package/v$(curl -s https://dl-cdn.alpinelinux.org/alpine/latest-stable/main/x86_64/APKINDEX.tar.gz | tar -xzO | grep -oP 'P:samba\nV:\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)"/main/x86_64/samba" | grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
+          ALPINE_VERSION=$(curl -s https://dl-cdn.alpinelinux.org/alpine/ | \ grep -oP '(?<=href=")v[0-9]+\.[0-9]+(?=/")' | sort -V | tail -n 1 | tr -d 'v')
+          LATEST_VERSION=$(curl -s "https://pkgs.alpinelinux.org/package/v$ALPINE_VERSION/main/x86_64/samba" | grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
           echo "Latest SMB version: $LATEST_VERSION"
           echo "version=$LATEST_VERSION" >> $GITHUB_OUTPUT
 
