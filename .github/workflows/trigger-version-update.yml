@@ -20,7 +20,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Ensure all tags are fetched
-          ref: main  # Make sure we are on the correct branch
 
       - name: Check latest Alpine SMB version
         id: check
@@ -45,18 +44,18 @@ jobs:
           # Compare versions
           if [ -z "$LAST_BUILT_VERSION" ]; then
             echo "No previous builds found. Proceeding to build."
-            echo "needs_update=true" >> $GITHUB_ENV
+            echo "needs_update=true" >> $GITHUB_OUTPUT
           elif [ "$LAST_BUILT_VERSION" != "${{ steps.check.outputs.version }}" ]; then
             echo "New SMB version detected. Proceeding to build."
-            echo "needs_update=true" >> $GITHUB_ENV
+            echo "needs_update=true" >> $GITHUB_OUTPUT
           else
             echo "No new SMB version. Skipping build."
-            echo "needs_update=false" >> $GITHUB_ENV
+            echo "needs_update=false" >> $GITHUB_OUTPUT
           fi
 
   build-and-push:
     needs: check-smb-version
-    if: env.needs_update == 'true'
+    if: needs.check-smb-version.outputs.needs_update == 'true'
     uses: ./.github/workflows/build-and-push.yml  # Reuse common build logic
     with:
       smb_version: ${{ needs.check-smb-version.outputs.smb_version }}
