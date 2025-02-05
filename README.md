@@ -23,7 +23,7 @@ services:
             - "SMB_GROUP=smbgroup"  # Default: smbgroup
             - "SMB_USER=smbuser"  # Default: smbuser
             - "SMB_PASS=smbuserpw"  # Default: smbuserpw
-            - "SMB_DEBUGLEVEL=1"  # Default: 1
+            - "SMB_DEBUGLEVEL=1"  # Value between 1 (less verbose) and 5 (very verbose). Default: 1
         volumes:
             - ./smb.conf:/etc/samba/smb.conf  # Required SMB configuration
         ports:
@@ -31,3 +31,10 @@ services:
             - 445:445
         restart: unless-stopped
 ```
+## ⚠️ Disclaimer  
+
+I am **not a professional developer**, and this project is provided **as is**.  Although it should be safe to run the image, use at your **own risk**.  
+There will be **no or very limited support** in case of issues.
+
+## 📜 License  
+This project is open-source and available under the [MIT License](LICENSE).  
