@@ -1,8 +1,7 @@
 ARG ALPINE_CHANNEL=stable
 FROM alpine:${ALPINE_CHANNEL}
 
-RUN apk update
-RUN apk add --no-cache samba tini
+RUN apk update && apk add --no-cache samba tini
 
 EXPOSE 137/udp 138/udp 139/tcp 445/tcp
 
