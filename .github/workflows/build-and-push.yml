@@ -6,12 +6,14 @@ on:
       smb_version:
         required: true
         type: string
+      variant:
+        required: true
+        type: string
 
 permissions:
   contents: write
   packages: write
-  #actions: write  # Grant permission to update workflows
-  
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -25,44 +27,35 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/smb-server
-          docker build -t $IMAGE_NAME:${{ inputs.smb_version }} .
-          docker tag $IMAGE_NAME:${{ inputs.smb_version }} $IMAGE_NAME:latest
+          docker build --build-arg ALPINE_VARIANT=${{ inputs.variant }} -t $IMAGE_NAME:${{ inputs.variant }}-${{ inputs.smb_version }} .
+          docker tag $IMAGE_NAME:${{ inputs.variant }}-${{ inputs.smb_version }} $IMAGE_NAME:${{ inputs.variant }}
 
       - name: Push Docker image to GHCR
         run: |
-          docker push ghcr.io/${{ github.repository_owner }}/smb-server:${{ inputs.smb_version }}
-          docker push ghcr.io/${{ github.repository_owner }}/smb-server:latest
-      
+          IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/smb-server
+          docker push $IMAGE_NAME:${{ inputs.variant }}-${{ inputs.smb_version }}
+          docker push $IMAGE_NAME:${{ inputs.variant }}
+
       - name: Update Git tags
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
-      
-          # Fetch all tags from remote
           git fetch --tags
-      
-          SMB_TAG="smb-${{ inputs.smb_version }}"
-      
-          # Check if the tag exists remotely
-          if git ls-remote --tags origin | grep -q "refs/tags/$SMB_TAG"; then
-            echo "Tag $SMB_TAG already exists. Deleting..."
-            git push origin --delete "$SMB_TAG"
-            git tag -d "$SMB_TAG" || true  # Ensure local deletion
+          TAG_NAME="smb-${{ inputs.variant }}-${{ inputs.smb_version }}"
+          if git ls-remote --tags origin | grep -q "refs/tags/$TAG_NAME"; then
+            git push origin --delete "$TAG_NAME"
+            git tag -d "$TAG_NAME" || true
           fi
-      
-          # Create and push the new tag
-          git tag "$SMB_TAG"
-          git push origin "$SMB_TAG"
-      
-          # Update the 'latest' tag
-          git tag -f latest
-          git push origin latest --force
+          git tag "$TAG_NAME"
+          git push origin "$TAG_NAME"
+          git tag -f smb-${{ inputs.variant }}-latest
+          git push origin smb-${{ inputs.variant }}-latest --force
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: smb-${{ inputs.smb_version }}
-          name: "SMB Server ${{ inputs.smb_version }}"
-          body: "A new version of the SMB server container has been built: **${{ inputs.smb_version }}**"
+          tag_name: smb-${{ inputs.variant }}-${{ inputs.smb_version }}
+          name: "SMB Server (${{ inputs.variant }}) ${{ inputs.smb_version }}"
+          body: "A new version of the SMB server container has been built from the **${{ inputs.variant }}** Alpine branch: **${{ inputs.smb_version }}**"
           draft: false
-          prerelease: false
+          prerelease: ${{ inputs.variant == 'edge' }}
