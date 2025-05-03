@@ -6,70 +6,70 @@ permissions:
 
 on:
   schedule:
-    - cron: '0 2 * * *'
+    - cron: '0 2 * * *'  # Dagelijks om 2:00 UTC
   workflow_dispatch:
 
 jobs:
-  check-versions:
+  check-smb-versions:
     runs-on: ubuntu-latest
     outputs:
-      stable_smb_version: ${{ steps.stable_check.outputs.version }}
-      edge_smb_version: ${{ steps.edge_check.outputs.version }}
-      stable_needs_update: ${{ steps.stable_compare.outputs.needs_update }}
-      edge_needs_update: ${{ steps.edge_compare.outputs.needs_update }}
+      stable_version: ${{ steps.check.outputs.stable_version }}
+      edge_version: ${{ steps.check.outputs.edge_version }}
+      stable_needs_update: ${{ steps.compare.outputs.stable_needs_update }}
+      edge_needs_update: ${{ steps.compare.outputs.edge_needs_update }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: Check latest Stable Alpine SMB version
-        id: stable_check
+      - name: Check latest SMB versions
+        id: check
         run: |
-          ALPINE_STABLE=$(curl -s https://dl-cdn.alpinelinux.org/alpine/ | grep -oP '(?<=href=")v[0-9]+\.[0-9]+(?=/")' | sort -V | tail -n 1 | tr -d 'v')
-          VERSION=$(curl -s "https://pkgs.alpinelinux.org/package/v$ALPINE_STABLE/main/x86_64/samba" | grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          get_latest_smb_version() {
+            local branch=$1
+            curl -s "https://pkgs.alpinelinux.org/package/${branch}/main/x86_64/samba" | \
+              grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1
+          }
 
-      - name: Check latest Edge Alpine SMB version
-        id: edge_check
-        run: |
-          VERSION=$(curl -s "https://pkgs.alpinelinux.org/package/edge/main/x86_64/samba" | grep -oP '>\K[0-9]+\.[0-9]+\.[0-9]+' | head -n 1)
-          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          STABLE_VERSION=$(get_latest_smb_version "v$(curl -s https://dl-cdn.alpinelinux.org/alpine/ | grep -oP '(?<=href=")v[0-9]+\.[0-9]+(?=/")' | sort -V | tail -n 1 | tr -d 'v')")
+          EDGE_VERSION=$(get_latest_smb_version "edge")
 
-      - name: Compare stable version with latest tag
-        id: stable_compare
+          echo "stable_version=$STABLE_VERSION" >> $GITHUB_OUTPUT
+          echo "edge_version=$EDGE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Compare with last built versions
+        id: compare
         run: |
           git fetch --tags
-          LAST_TAG=$(git tag --list 'smb-stable-*' | sort -V | tail -n 1 | sed 's/smb-stable-//')
-          if [ "$LAST_TAG" != "${{ steps.stable_check.outputs.version }}" ]; then
-            echo "needs_update=true" >> $GITHUB_OUTPUT
+
+          LAST_STABLE_VERSION=$(git tag --list 'smb-stable-*' | sort -V | tail -n 1 | sed 's/smb-stable-//')
+          LAST_EDGE_VERSION=$(git tag --list 'smb-edge-*' | sort -V | tail -n 1 | sed 's/smb-edge-//')
+
+          if [ "$LAST_STABLE_VERSION" != "${{ steps.check.outputs.stable_version }}" ]; then
+            echo "stable_needs_update=true" >> $GITHUB_OUTPUT
           else
-            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "stable_needs_update=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Compare edge version with latest tag
-        id: edge_compare
-        run: |
-          git fetch --tags
-          LAST_TAG=$(git tag --list 'smb-edge-*' | sort -V | tail -n 1 | sed 's/smb-edge-//')
-          if [ "$LAST_TAG" != "${{ steps.edge_check.outputs.version }}" ]; then
-            echo "needs_update=true" >> $GITHUB_OUTPUT
+          if [ "$LAST_EDGE_VERSION" != "${{ steps.check.outputs.edge_version }}" ]; then
+            echo "edge_needs_update=true" >> $GITHUB_OUTPUT
           else
-            echo "needs_update=false" >> $GITHUB_OUTPUT
+            echo "edge_needs_update=false" >> $GITHUB_OUTPUT
           fi
 
   build-stable:
-    needs: check-versions
-    if: needs.check-versions.outputs.stable_needs_update == 'true'
+    needs: check-smb-versions
+    if: needs.check-smb-versions.outputs.stable_needs_update == 'true'
     uses: ./.github/workflows/build-and-push.yml
     with:
-      smb_version: ${{ needs.check-versions.outputs.stable_smb_version }}
-      variant: stable
+      smb_version: ${{ needs.check-smb-versions.outputs.stable_version }}
+      alpine_channel: stable
 
   build-edge:
-    needs: check-versions
-    if: needs.check-versions.outputs.edge_needs_update == 'true'
+    needs: check-smb-versions
+    if: needs.check-smb-versions.outputs.edge_needs_update == 'true'
     uses: ./.github/workflows/build-and-push.yml
     with:
-      smb_version: ${{ needs.check-versions.outputs.edge_smb_version }}
-      variant: edge
+      smb_version: ${{ needs.check-smb-versions.outputs.edge_version }}
+      alpine_channel: edge
