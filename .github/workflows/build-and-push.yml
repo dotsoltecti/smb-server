@@ -6,7 +6,7 @@ on:
       smb_version:
         required: true
         type: string
-      variant:
+      alpine_channel:
         required: true
         type: string
 
@@ -27,35 +27,35 @@ jobs:
       - name: Build Docker image
         run: |
           IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/smb-server
-          docker build --build-arg ALPINE_VARIANT=${{ inputs.variant }} -t $IMAGE_NAME:${{ inputs.variant }}-${{ inputs.smb_version }} .
-          docker tag $IMAGE_NAME:${{ inputs.variant }}-${{ inputs.smb_version }} $IMAGE_NAME:${{ inputs.variant }}
+          docker build --build-arg ALPINE_CHANNEL=${{ inputs.alpine_channel }} -t $IMAGE_NAME:${{ inputs.alpine_channel }}-${{ inputs.smb_version }} .
+          docker tag $IMAGE_NAME:${{ inputs.alpine_channel }}-${{ inputs.smb_version }} $IMAGE_NAME:${{ inputs.alpine_channel }}
 
       - name: Push Docker image to GHCR
         run: |
           IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/smb-server
-          docker push $IMAGE_NAME:${{ inputs.variant }}-${{ inputs.smb_version }}
-          docker push $IMAGE_NAME:${{ inputs.variant }}
+          docker push $IMAGE_NAME:${{ inputs.alpine_channel }}-${{ inputs.smb_version }}
+          docker push $IMAGE_NAME:${{ inputs.alpine_channel }}
 
       - name: Update Git tags
         run: |
           git config --global user.name "github-actions"
           git config --global user.email "github-actions@github.com"
           git fetch --tags
-          TAG_NAME="smb-${{ inputs.variant }}-${{ inputs.smb_version }}"
+          TAG_NAME="smb-${{ inputs.alpine_channel }}-${{ inputs.smb_version }}"
           if git ls-remote --tags origin | grep -q "refs/tags/$TAG_NAME"; then
             git push origin --delete "$TAG_NAME"
             git tag -d "$TAG_NAME" || true
           fi
           git tag "$TAG_NAME"
           git push origin "$TAG_NAME"
-          git tag -f smb-${{ inputs.variant }}-latest
-          git push origin smb-${{ inputs.variant }}-latest --force
+          git tag -f smb-${{ inputs.alpine_channel }}-latest
+          git push origin smb-${{ inputs.alpine_channel }}-latest --force
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: smb-${{ inputs.variant }}-${{ inputs.smb_version }}
-          name: "SMB Server (${{ inputs.variant }}) ${{ inputs.smb_version }}"
-          body: "A new version of the SMB server container has been built from the **${{ inputs.variant }}** Alpine branch: **${{ inputs.smb_version }}**"
+          tag_name: smb-${{ inputs.alpine_channel }}-${{ inputs.smb_version }}
+          name: "SMB Server (${{ inputs.alpine_channel }}) ${{ inputs.smb_version }}"
+          body: "A new version of the SMB server container has been built from the **${{ inputs.alpine_channel }}** Alpine branch: **${{ inputs.smb_version }}**"
           draft: false
-          prerelease: ${{ inputs.variant == 'edge' }}
+          prerelease: ${{ inputs.alpine_channel == 'edge' }}
