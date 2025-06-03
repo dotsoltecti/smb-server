@@ -64,7 +64,7 @@ jobs:
     uses: ./.github/workflows/build-and-push.yml
     with:
       smb_version: ${{ needs.check-smb-versions.outputs.stable_version }}
-      alpine_channel: stable
+      alpine_channel: latest
 
   build-edge:
     needs: check-smb-versions
