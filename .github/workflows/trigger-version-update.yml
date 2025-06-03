@@ -42,7 +42,7 @@ jobs:
         id: compare
         run: |
           git fetch --tags
-          echo "$(git tag --list)"
+
           LAST_STABLE_VERSION=$(git tag --list | grep 'smb-latest-[0-9]' | sort -V | tail -n 1 | sed 's/smb-latest-//')
           echo "Last built stable version: $LAST_STABLE_VERSION"
           echo "Last alpine stable version: ${{ steps.check.outputs.stable_version }}"
