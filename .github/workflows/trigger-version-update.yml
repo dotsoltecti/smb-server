@@ -44,7 +44,11 @@ jobs:
           git fetch --tags
 
           LAST_STABLE_VERSION=$(git tag --list 'smb-stable-*' | sort -V | tail -n 1 | sed 's/smb-stable-//')
+          echo "Last built stable version: $LAST_STABLE_VERSION"
+          echo "Last alpine stable version: ${{ steps.check.outputs.stable_version }}"
           LAST_EDGE_VERSION=$(git tag --list 'smb-edge-*' | sort -V | tail -n 1 | sed 's/smb-edge-//')
+          echo "Last built edge version: $LAST_EDGE_VERSION"
+          echo "Last alpine edge version: ${{ steps.check.outputs.edge_version }}"
 
           if [ "$LAST_STABLE_VERSION" != "${{ steps.check.outputs.stable_version }}" ]; then
             echo "stable_needs_update=true" >> $GITHUB_OUTPUT
