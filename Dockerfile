@@ -1,4 +1,4 @@
-ARG ALPINE_CHANNEL=stable
+ARG ALPINE_CHANNEL=latest
 FROM alpine:${ALPINE_CHANNEL}
 
 RUN apk update && apk add --no-cache samba tini
